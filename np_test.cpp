@@ -6,7 +6,10 @@
 #endif
 
 #include <iostream>
+#include <iomanip>
+#include <cstring>
 #include <complex>
+#include <random>
 #include <Eigen/Core>
 #include <Eigen/QR>
 
@@ -14,7 +17,7 @@
 
 template<typename Derived, typename Scalar>
 inline void scalemat(const Eigen::MatrixBase<Derived>& In,
-             Eigen::MatrixBase<Derived>& Out, Scalar s)
+                     Eigen::MatrixBase<Derived>& Out, Scalar s)
 {
     Out = s * In;
 }
@@ -28,50 +31,86 @@ inline double eigen_logdet(const Eigen::MatrixBase<Derived>& In)
 #if WRAP_PYTHON
 void dscal(PyObject *In, PyObject *Out, PyObject *Sc)
 {
-    npy_intp *n;
-    double s;
-    n = PyArray_DIMS(In);
-    s = PyFloat_AsDouble(Sc);
-    Eigen::Map<Eigen::VectorXd> eigIn((double*)PyArray_DATA(In),n[0]);
-    Eigen::Map<Eigen::VectorXd> eigOut((double*)PyArray_DATA(Out),n[0]);
+    auto n = PyArray_DIMS(In);
+    auto s = PyFloat_AsDouble(Sc);
+    auto eigIn = Eigen::Map<Eigen::VectorXd>{static_cast<double*>(PyArray_DATA(In)),n[0]};
+    auto eigOut = Eigen::Map<Eigen::VectorXd>{static_cast<double*>(PyArray_DATA(Out)),n[0]};
     return scalemat(eigIn, eigOut, s);
 }
 
 void zscal(PyObject *In, PyObject *Out, PyObject *Sc)
 {
-    npy_intp *n;
-    n = PyArray_DIMS(In);
-    std::complex<double> s(PyComplex_RealAsDouble(Sc), PyComplex_ImagAsDouble(Sc));
-    Eigen::Map<Eigen::VectorXcd> eigIn((std::complex<double>*)PyArray_DATA(In),n[0]);
-    Eigen::Map<Eigen::VectorXcd> eigOut((std::complex<double>*)PyArray_DATA(Out),n[0]);
+    //npy_intp *n;
+    //n = PyArray_DIMS(In);
+    //std::complex<double> s(PyComplex_RealAsDouble(Sc), PyComplex_ImagAsDouble(Sc));
+    //Eigen::Map<Eigen::VectorXcd> eigIn((std::complex<double>*)PyArray_DATA(In),n[0]);
+    //Eigen::Map<Eigen::VectorXcd> eigOut((std::complex<double>*)PyArray_DATA(Out),n[0]);
+
+    auto n = PyArray_DIMS(In);
+    auto s = std::complex<double>{PyComplex_RealAsDouble(Sc), PyComplex_ImagAsDouble(Sc)};
+    auto eigIn = Eigen::Map<Eigen::VectorXcd>{static_cast<std::complex<double>*>(PyArray_DATA(In)),n[0]};
+    auto eigOut = Eigen::Map<Eigen::VectorXcd>{static_cast<std::complex<double>*>(PyArray_DATA(Out)),n[0]};
+
     return scalemat(eigIn, eigOut, s);
 }
 
 boost::python::object dlogdet(PyObject *In)
 {
-    npy_intp *n;
-    n = PyArray_DIMS(In);
-    Eigen::Map<Eigen::MatrixXd> eigIn((double*)PyArray_DATA(In),n[0],n[1]);
+    auto n = PyArray_DIMS(In);
+    auto eigIn = Eigen::Map<Eigen::MatrixXd>{static_cast<double*>(PyArray_DATA(In)),n[0],n[1]};
     return boost::python::object(eigen_logdet(eigIn));
 }
 
 boost::python::object zlogdet(PyObject *In)
 {
-    npy_intp *n;
-    n = PyArray_DIMS(In);
-    Eigen::Map<Eigen::MatrixXcd> eigIn((std::complex<double>*)PyArray_DATA(In),n[0],n[1]);
+    auto n = PyArray_DIMS(In);
+    auto eigIn = Eigen::Map<Eigen::MatrixXcd>{static_cast<std::complex<double>*>(PyArray_DATA(In)),n[0],n[1]};
     return boost::python::object(eigen_logdet(eigIn));
 }
 
+boost::python::object randvec(PyObject *Sz)
+{
+    auto seed = 8675309;
+    auto gen = std::mt19937_64{seed};
+    auto n = PyInt_AsLong(Sz);
+    auto ndist = std::normal_distribution<double>{0., 1.};
+    //auto normal = [&](double){return ndist(gen);};
+    auto normal = [&](){return ndist(gen);};
 
+    // Allocate our data and generate from standard normal
+#define NF_TESTING 1
+    auto data = static_cast<double*>(new double[n]);
+    for (int i = 0; i < n; i++)
+    {
+        data[i] = normal();
+#if NF_TESTING
+        std::cout << data[i] << " ";
+#endif
+    }
+#if NF_TESTING
+    std::cout << "\n";
+#endif
+
+    npy_intp *shape = &n;
+    npy_intp strides[1] = {sizeof(double)};
+
+    auto array = boost::python::handle<>{PyArray_New(&PyArray_Type, 1, shape,
+                                         NPY_DOUBLE, strides, data,
+                                         sizeof(double), NPY_ARRAY_CARRAY, NULL)};
+    return boost::python::object(array);
+}
 
 using namespace boost::python;
 BOOST_PYTHON_MODULE(np_test)
 {
+    // To use C-API memory funtions.  This was actually very important
+    import_array();
+
     def("dscal", dscal);
     def("zscal", zscal);
     def("dlogdet", dlogdet);
     def("zlogdet", zlogdet);
+    def("randvec", randvec);
 }
 
 
