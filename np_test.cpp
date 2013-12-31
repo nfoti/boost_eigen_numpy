@@ -100,6 +100,42 @@ boost::python::object randvec(PyObject *Sz)
     return boost::python::object(array);
 }
 
+boost::python::list list_of_ndarray()
+{
+    boost::python::list l;
+    for (int i = 0; i < 5; i++)
+    {
+        npy_intp shape[1] = {i};
+        npy_intp strides[1] = {sizeof(double)};
+        auto data = static_cast<double*>(new double[i]);
+        for (int j = 0; j < i; j++)
+            data[j] = i;
+        auto array = boost::python::handle<>{PyArray_New(&PyArray_Type, 1, shape,
+                                             NPY_DOUBLE, strides, data,
+                                             sizeof(double), NPY_ARRAY_CARRAY, NULL)};
+        l.append(boost::python::object(array));
+    }
+    return l;
+}
+
+void input_list_of_ndarray(boost::python::list List)
+{
+    for (int i = 0; i < boost::python::len(List); i++)
+    {
+        boost::python::object pobj = List[i];
+        auto l = pobj.ptr();
+        auto nd = PyArray_NDIM(l);
+        auto n = PyArray_DIMS(l);
+        if (nd == 2)
+        {
+            auto X = Eigen::Map<Eigen::MatrixXd>{static_cast<double*>(PyArray_DATA(l)),n[0],n[1]};
+            std::cout << "Matrix: " << X << "\n";
+        }
+        else
+            std::cout << "ndarray must be two dimensional\n";
+    }
+}
+
 using namespace boost::python;
 BOOST_PYTHON_MODULE(np_test)
 {
@@ -111,6 +147,8 @@ BOOST_PYTHON_MODULE(np_test)
     def("dlogdet", dlogdet);
     def("zlogdet", zlogdet);
     def("randvec", randvec);
+    def("list_of_ndarray", list_of_ndarray);
+    def("input_list_of_ndarray", input_list_of_ndarray);
 }
 
 
