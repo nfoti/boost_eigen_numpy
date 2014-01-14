@@ -40,22 +40,16 @@ void dscal(PyObject *In, PyObject *Out, PyObject *Sc)
 
 void zscal(PyObject *In, PyObject *Out, PyObject *Sc)
 {
-    //npy_intp *n;
-    //n = PyArray_DIMS(In);
-    //std::complex<double> s(PyComplex_RealAsDouble(Sc), PyComplex_ImagAsDouble(Sc));
-    //Eigen::Map<Eigen::VectorXcd> eigIn((std::complex<double>*)PyArray_DATA(In),n[0]);
-    //Eigen::Map<Eigen::VectorXcd> eigOut((std::complex<double>*)PyArray_DATA(Out),n[0]);
-
     auto n = PyArray_DIMS(In);
     auto s = std::complex<double>{PyComplex_RealAsDouble(Sc), PyComplex_ImagAsDouble(Sc)};
     auto eigIn = Eigen::Map<Eigen::VectorXcd>{static_cast<std::complex<double>*>(PyArray_DATA(In)),n[0]};
     auto eigOut = Eigen::Map<Eigen::VectorXcd>{static_cast<std::complex<double>*>(PyArray_DATA(Out)),n[0]};
-
     return scalemat(eigIn, eigOut, s);
 }
 
 boost::python::object dlogdet(PyObject *In)
 {
+    // Can write this with a boost::python::object& and use In.ptr()
     auto n = PyArray_DIMS(In);
     auto eigIn = Eigen::Map<Eigen::MatrixXd>{static_cast<double*>(PyArray_DATA(In)),n[0],n[1]};
     return boost::python::object(eigen_logdet(eigIn));
@@ -63,6 +57,7 @@ boost::python::object dlogdet(PyObject *In)
 
 boost::python::object zlogdet(PyObject *In)
 {
+    // Can write this with a boost::python::object& and use In.ptr()
     auto n = PyArray_DIMS(In);
     auto eigIn = Eigen::Map<Eigen::MatrixXcd>{static_cast<std::complex<double>*>(PyArray_DATA(In)),n[0],n[1]};
     return boost::python::object(eigen_logdet(eigIn));
@@ -70,6 +65,7 @@ boost::python::object zlogdet(PyObject *In)
 
 boost::python::object randvec(PyObject *Sz)
 {
+    // Can write this with a boost::python::object& and use Sz.ptr()
     auto seed = 8675309;
     auto gen = std::mt19937_64{seed};
     auto n = PyInt_AsLong(Sz);
@@ -118,7 +114,7 @@ boost::python::list list_of_ndarray()
     return l;
 }
 
-void input_list_of_ndarray(boost::python::list List)
+void input_list_of_ndarray(boost::python::list& List)
 {
     for (int i = 0; i < boost::python::len(List); i++)
     {
